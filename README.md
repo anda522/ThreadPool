@@ -9,12 +9,55 @@
 
 
 - 实现多线程安全的任务队列，线程池使用异步操作，提交(submit)使用与thread相同。
-
 - 内部利用完美转发获取可调用对象的函数签名，lambda与function包装任务，使用RAII管理线程池的生命周期。
+
+# shared_mutex
+
+C++17共享锁
 
 # std::move
 
 将`左值或右值`转换为右值
+
+# 条件变量
+
+> 参考：https://blog.csdn.net/xhtchina/article/details/90572762
+
+## wait
+
+条件变量是需要和一个互斥锁mutex配合使用，调用`wait()`之前应该先获得mutex，当线程调用 wait() 后将被阻塞，当wait陷入休眠是会自动释放mutex。直到另外某个线程调用 notify_one或notify_all唤醒了当前线程。当线程被唤醒时，此时线程是已经自动占有了mutex。
+
+条件变量是利用线程间共享的全局变量进行同步的一种机制，主要包括两个动作：
+
+- 一个线程因等待"条件变量的条件成立"而挂起；
+- 另外一个线程使"条件成立"，给出信号，从而唤醒被等待的线程。
+
+为了防止竞争，条件变量的使用总是和一个互斥锁结合在一起；通常情况下这个锁是`std::mutex`，并且管理这个锁只能是 `std::unique_lock`  RAII模板类。
+
+线程的阻塞是通过成员函数`wait()/wait_for()/wait_until()`函数实现的。
+
+```cpp
+void wait(std::unique_lock<std::mutex>& lock);
+//Predicate 谓词函数，可以普通函数或者lambda表达式
+template<class Predicate>
+void wait(std::unique_lock<std::mutex>& lock, Predicate pred);
+```
+
+以上的wait函数都在会阻塞时，自动释放锁权限，即调用unique_lock的成员函数`unlock()`，以便其他线程能有机会获得锁。这就是条件变量只能和unique_lock一起使用的原因，否则当前线程一直占有锁，线程被阻塞。
+
+## notify_all/notify_one
+
+- `notify_one`
+
+若任何线程在 `*this` 上等待，则调用 notify_one 会解阻塞(唤醒)等待线程之一。
+
+- `notify_all`
+
+若任何线程在 *this 上等待，则解阻塞（唤醒）全部等待线程。
+
+## 虚假唤醒
+
+在正常情况下，wait类型函数返回时要么是因为被唤醒，要么是因为超时才返回，但是在实际中发现，因此操作系统的原因，wait类型在不满足条件时，它也会返回，这就导致了虚假唤醒。
 
 # 完美转发
 
