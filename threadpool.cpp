@@ -1,6 +1,11 @@
 #include<iostream>
 #include<queue>
 #include<shared_mutex>
+#include<functional>
+#include<vector>
+#include<thread>
+#include<condition_variable>
+#include<furture>
 
 template<typename T>
 struct SafeQueue {
@@ -42,6 +47,57 @@ struct SafeQueue {
 		q.pop();
 		return true;
 	}
+};
+
+// 线程池实现
+class ThreadPool {
+private:
+	// worker用于线程的不断(故有while循环)执行，最多支持n个线程的执行
+	class worker {
+		ThreadPool *pool;
+		// worker的构造函数
+		worker(ThreadPool* _pool): pool(_pool) {};
+		// 重载()
+		void operator ()() {
+			// 只要线程池没关，就一直询问且执行线程
+			while(!pool->is_shutdown) {
+				// 执行线程操作
+				// ...
+			}
+		}
+	};
+
+public:
+	// 线程池是否关闭
+	bool is_shutdown;
+	// 安全队列,存储类型为函数
+	SafeQueue<std::function<void()>> q;
+	// 所有线程
+	std::vector<std::thread> threads;
+	// 互斥量
+	std::mutex _m;
+	// 条件变量
+	std::condition_variable cv;
+
+	// 构造函数
+	ThreadPool(int n): threads(n), is_shutdown(false) {
+		for(auto& t : threads) {
+			// worker传入线程池的指针
+			t = std::thread(worker(this));
+		}
+	}
+
+	// 任务提交
+	template<typename F, typename... Args>
+	auto submit(F&& f, Args&& ...args) -> std::furture<decltype(f(args...))> {
+		// ...
+	}
+
+	// 析构函数
+	~ThreadPool() {
+		// ...
+	}
+
 };
 
 int main() {
