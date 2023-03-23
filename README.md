@@ -13,7 +13,9 @@
 
 # 线程池
 
-> C++ 线程池：https://zhuanlan.zhihu.com/p/376235626
+> - C++ 线程池：https://zhuanlan.zhihu.com/p/376235626
+>
+> - C++ 线程池：https://zhuanlan.zhihu.com/p/367309864
 
 ## 1 概念
 
@@ -74,6 +76,12 @@ Future里面有个方法 `get()`是个阻塞等待方法。当线程池一次性
 - `std::packaged_task`的get_future函数
 - `std::async` 函数
 
+# join
+
+哪个线程调用这个方法，就让调用此方法的线程进入阻塞状态，等待此线程执行完毕之后，再往下执行
+
+> 若当前线程未运行完毕，继续运行该线程，并阻塞主进程；直到该线程执行完毕再往下执行
+
 # 条件变量
 
 > 参考：https://blog.csdn.net/xhtchina/article/details/90572762
@@ -128,7 +136,7 @@ C++11 标准中规定，通常情况下右值引用形式的参数只能接收�
 
 C++11 标准的开发者已经帮我们想好了解决方案，该新标准还引入了一个模板函数 `forword<T>()`
 
-# RAII
+# RAII机制
 
 > 参考：https://zhuanlan.zhihu.com/p/600337719
 

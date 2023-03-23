@@ -142,12 +142,12 @@ public:
 			std::unique_lock<std::mutex> lock(_m);
 			is_shutdown = true;
 		}
-		// 唤醒所有线程
+		// 唤醒所有阻塞的线程(在线程池中阻塞的线程)
 		cv.notify_all();
 		for(auto& t : threads) {
-			
+			// 判断此线程是否可以
 			if(t.joinable()) {
-				t.join();
+				t.join(); // 线程未运行完毕，阻塞进程继续运行线程，直到运行结束
 			}
 		}
 	}
