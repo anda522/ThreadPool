@@ -73,6 +73,12 @@ private:
 							!this->pool->q.empty();
 					});
 				}
+				function<void()> func;
+				bool flag = pool->q.pop(func);
+				if(flag) {
+					// 执行线程函数
+					func();
+				}
 			}
 		}
 	};
@@ -100,12 +106,34 @@ public:
 	// 任务提交
 	template<typename F, typename... Args>
 	auto submit(F&& f, Args&& ...args) -> std::furture<decltype(f(args...))> {
-		// ...
+		
+		function<decltype(f(args...))> func = [&f, arg...]() {
+			return f(args...);
+		};
+
+		auto task_ptr = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
+
+		std::function<void()> wrapper_func = [task_ptr]() {
+			(*task_ptr)();
+		};
+
+		q.push(wrapper_func);
+		cv.notify_one();
 	}
 
 	// 析构函数
 	~ThreadPool() {
-		// ...
+		auto f = submit([]() {});
+		f.get();
+
+		is_shutdown = true;
+		// 唤醒所有线程
+		cv.notify_all();
+		for(auto& t : threads) {
+			if(t.joinable()) {
+				t.join();
+			}
+		}
 	}
 
 };
