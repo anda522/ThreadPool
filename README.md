@@ -57,6 +57,8 @@ void wait(std::unique_lock<std::mutex>& lock, Predicate pred);
 
 ## 虚假唤醒
 
+> 参考：https://blog.csdn.net/weixin_42108411/article/details/110138238
+
 在正常情况下，wait类型函数返回时要么是因为被唤醒，要么是因为超时才返回，但是在实际中发现，因此操作系统的原因，wait类型在不满足条件时，它也会返回，这就导致了虚假唤醒。
 
 # 完美转发

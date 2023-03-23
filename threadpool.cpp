@@ -60,9 +60,19 @@ private:
 		// 重载()
 		void operator ()() {
 			// 只要线程池没关，就一直询问且执行线程
-			while(!pool->is_shutdown) {
+			// 避免虚假唤醒，设置while循环
+			while(!pool->is_shutdown) { 
 				// 执行线程操作
-				// ...
+				{
+					// wait需要和unique_lock配套使用
+					std::unique_lock<std::mutex> lock(pool->_m);
+					// false: 解开互斥锁，线程挂起（阻塞）
+					// true: 取消阻塞，当前线程继续工作
+					pool->cv.wait(lock, [this]() {
+						return this->pool->is_shutdown || 
+							!this->pool->q.empty();
+					});
+				}
 			}
 		}
 	};
