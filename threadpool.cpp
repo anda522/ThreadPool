@@ -55,7 +55,7 @@ struct SafeQueue {
 // 线程池实现
 class ThreadPool {
 private:
-	// worker用于线程的不断(故有while循环)执行，最多支持n个线程的执行
+	// 内置线程工作类
 	class worker {
 	public:
 		ThreadPool *pool;
@@ -63,22 +63,21 @@ private:
 		worker(ThreadPool* _pool): pool(_pool) {};
 		// 重载()
 		void operator ()() {
-			// 只要线程池没关，就一直询问且执行线程
-			// 避免虚假唤醒，设置while循环
+			bool flag;
+			std::function<void()> func;
+			// 只要线程池没关，就一直拿出任务队列的任务执行线程任务
 			while(!pool->is_shutdown) { 
-				// 执行线程操作
 				{
 					// wait需要和unique_lock配套使用
 					std::unique_lock<std::mutex> lock(pool->_m);
-					// false: 解开互斥锁，线程挂起（阻塞）
-					// true: 取消阻塞，当前线程继续工作
+					// 条件为false: 解开互斥锁，阻塞线程，等待条件变量通知
+					// 条件为true : 取消阻塞，当前线程继续工作
 					pool->cv.wait(lock, [this]() {
 						return this->pool->is_shutdown || 
 							!this->pool->q.empty();
 					});
+					flag = pool->q.pop(func);
 				}
-				std::function<void()> func;
-				bool flag = pool->q.pop(func);
 				if(flag) {
 					// 执行线程函数
 					func();
@@ -107,10 +106,15 @@ public:
 		}
 	}
 
+	ThreadPool(const ThreadPool&) = delete;
+	ThreadPool(ThreadPool&&) = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
+    ThreadPool& operator=(ThreadPool&&) = delete;
+
 	// 任务提交
 	template<typename F, typename... Args>
 	auto submit(F&& f, Args&& ...args) -> std::future<decltype(f(args...))> {
-		
+		// func为左值
 		std::function<decltype(f(args...))()> func = [&f, args...]() {
 			return f(args...);
 		};
@@ -124,19 +128,24 @@ public:
 		q.push(wrapper_func);
 		// 唤醒一个线程
 		cv.notify_one();
-
+		// 返回之前注册的任务指针
 		return task_ptr->get_future();
 	}
 
 	// 析构函数
 	~ThreadPool() {
+		// 添加一个空任务，必须获取空任务的返回值才能结束,这样所有的任务都能够得到执行
 		auto f = submit([]() {});
 		f.get();
 		// 线程池关闭
-		is_shutdown = true;
+		{
+			std::unique_lock<std::mutex> lock(_m);
+			is_shutdown = true;
+		}
 		// 唤醒所有线程
 		cv.notify_all();
 		for(auto& t : threads) {
+			
 			if(t.joinable()) {
 				t.join();
 			}
@@ -148,7 +157,7 @@ public:
 std::mutex _m;
 int main() {
 	ThreadPool pool(8);
-	int n = 20;
+	int n = 30;
 
 	for(int i = 1; i <= n; i++) {
 		pool.submit([](int id) {
@@ -160,6 +169,5 @@ int main() {
 			std::cout << "id : " << id << "\n";
 		}, i);
 	}
-
 	return 0;
 }
