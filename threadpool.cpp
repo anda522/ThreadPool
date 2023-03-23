@@ -5,7 +5,10 @@
 #include<vector>
 #include<thread>
 #include<condition_variable>
-#include<furture>
+#include<future>
+#include<mutex>
+#include<time.h>
+#include<chrono>
 
 template<typename T>
 struct SafeQueue {
@@ -54,6 +57,7 @@ class ThreadPool {
 private:
 	// worker用于线程的不断(故有while循环)执行，最多支持n个线程的执行
 	class worker {
+	public:
 		ThreadPool *pool;
 		// worker的构造函数
 		worker(ThreadPool* _pool): pool(_pool) {};
@@ -73,7 +77,7 @@ private:
 							!this->pool->q.empty();
 					});
 				}
-				function<void()> func;
+				std::function<void()> func;
 				bool flag = pool->q.pop(func);
 				if(flag) {
 					// 执行线程函数
@@ -105,27 +109,30 @@ public:
 
 	// 任务提交
 	template<typename F, typename... Args>
-	auto submit(F&& f, Args&& ...args) -> std::furture<decltype(f(args...))> {
+	auto submit(F&& f, Args&& ...args) -> std::future<decltype(f(args...))> {
 		
-		function<decltype(f(args...))> func = [&f, arg...]() {
+		std::function<decltype(f(args...))()> func = [&f, args...]() {
 			return f(args...);
 		};
 
 		auto task_ptr = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
-
+		// 包装函数
 		std::function<void()> wrapper_func = [task_ptr]() {
 			(*task_ptr)();
 		};
-
+		// 将包装的函数加入队列
 		q.push(wrapper_func);
+		// 唤醒一个线程
 		cv.notify_one();
+
+		return task_ptr->get_future();
 	}
 
 	// 析构函数
 	~ThreadPool() {
 		auto f = submit([]() {});
 		f.get();
-
+		// 线程池关闭
 		is_shutdown = true;
 		// 唤醒所有线程
 		cv.notify_all();
@@ -138,7 +145,21 @@ public:
 
 };
 
+std::mutex _m;
 int main() {
+	ThreadPool pool(8);
+	int n = 20;
+
+	for(int i = 1; i <= n; i++) {
+		pool.submit([](int id) {
+			if(id % 2 == 1) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			}
+			// 对输出cout加锁
+			std::unique_lock<std::mutex> lock(_m);
+			std::cout << "id : " << id << "\n";
+		}, i);
+	}
 
 	return 0;
 }
