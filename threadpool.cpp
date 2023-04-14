@@ -118,9 +118,9 @@ public:
 		std::function<decltype(f(args...))()> func = [&f, args...]() {
 			return f(args...);
 		};
-
+		// 使用packaged_task获取函数签名，链接func和future，使之能够进行异步操作
 		auto task_ptr = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
-		// 包装函数
+		// 包装可进入线程的线程函数
 		std::function<void()> wrapper_func = [task_ptr]() {
 			(*task_ptr)();
 		};
@@ -128,7 +128,7 @@ public:
 		q.push(wrapper_func);
 		// 唤醒一个线程
 		cv.notify_one();
-		// 返回之前注册的任务指针
+		// 返回前面注册的任务指针
 		return task_ptr->get_future();
 	}
 
